@@ -1,0 +1,9 @@
+{
+  "project_id": "project_x",
+  "name": "Project X",
+  "state": "idle",
+  "goals": [],
+  "active_workflow": null,
+  "last_run_id": null,
+  "updated_at": null
+}
