@@ -1,0 +1,1160 @@
+openapi: 3.1.0
+info:
+  title: GPT-OS GitHub Controller API (Strict Tool-Safe, 30 Actions, Compat)
+  version: 19.0.0
+  description: 'Strict, tool-safe OpenAPI profile for Custom GPT with exactly 30 actions.
+    Compatibility variant: all operation parameters are inlined (no parameter
+    $ref) for tool importers that skip referenced parameters.
+
+    '
+servers:
+- url: https://api.github.com
+security:
+- githubToken: []
+components:
+  securitySchemes:
+    githubToken:
+      type: http
+      scheme: bearer
+      bearerFormat: PAT
+  responses:
+    Unauthorized:
+      description: Requires authentication
+    Forbidden:
+      description: Forbidden
+    NotFound:
+      description: Resource not found
+    Conflict:
+      description: Resource conflict
+    ValidationError:
+      description: Validation failed
+  schemas:
+    FileAuthor:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      - email
+      properties:
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          minLength: 3
+    CreateRepoRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+        private:
+          type: boolean
+          default: true
+        description:
+          type: string
+        auto_init:
+          type: boolean
+          default: true
+        gitignore_template:
+          type: string
+        license_template:
+          type: string
+    ContentsPutRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      - content
+      properties:
+        message:
+          type: string
+          minLength: 1
+        content:
+          type: string
+          description: Base64-encoded file content.
+          minLength: 1
+        branch:
+          type: string
+          default: main
+        sha:
+          type: string
+          description: Required when updating an existing file.
+        committer:
+          $ref: '#/components/schemas/FileAuthor'
+        author:
+          $ref: '#/components/schemas/FileAuthor'
+    ContentsDeleteRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - message
+      - sha
+      properties:
+        message:
+          type: string
+          minLength: 1
+        sha:
+          type: string
+          minLength: 1
+        branch:
+          type: string
+          default: main
+        committer:
+          $ref: '#/components/schemas/FileAuthor'
+        author:
+          $ref: '#/components/schemas/FileAuthor'
+    RepositoryDispatchRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - event_type
+      properties:
+        event_type:
+          type: string
+          enum:
+          - write_file
+          - run_analysis
+        client_payload:
+          type: object
+          additionalProperties: true
+    WorkflowDispatchRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - ref
+      properties:
+        ref:
+          type: string
+          default: main
+        inputs:
+          type: object
+          additionalProperties: true
+    CreateRefRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - ref
+      - sha
+      properties:
+        ref:
+          type: string
+          pattern: ^refs/heads/.+
+        sha:
+          type: string
+          minLength: 7
+    UpdateRefRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - sha
+      properties:
+        sha:
+          type: string
+          minLength: 7
+        force:
+          type: boolean
+          default: false
+    CreatePullRequestRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      - head
+      - base
+      properties:
+        title:
+          type: string
+          minLength: 1
+        head:
+          type: string
+          minLength: 1
+        base:
+          type: string
+          minLength: 1
+        body:
+          type: string
+        draft:
+          type: boolean
+          default: false
+    MergePullRequestRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        commit_title:
+          type: string
+        commit_message:
+          type: string
+        merge_method:
+          type: string
+          enum:
+          - merge
+          - squash
+          - rebase
+    CreateIssueRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+        body:
+          type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            oneOf:
+            - type: string
+            - type: integer
+    CreateIssueCommentRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+paths:
+  /user/repos:
+    post:
+      operationId: createRepository
+      summary: Create repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRepoRequest'
+      responses:
+        '201':
+          description: Repository created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /repos/{owner}/{repo}:
+    get:
+      operationId: getRepository
+      summary: Get repository metadata
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      responses:
+        '200':
+          description: Repository metadata
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /repos/{owner}/{repo}/contents:
+    get:
+      operationId: listRepositoryContents
+      summary: List repository contents
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: path
+        in: query
+        schema:
+          type: string
+      - name: ref
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Directory listing
+  /repos/{owner}/{repo}/contents/{path}:
+    get:
+      operationId: getFileContent
+      summary: Read repository file
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: ref
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: File content or directory listing
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: createOrUpdateFile
+      summary: Create or update file
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentsPutRequest'
+      responses:
+        '200':
+          description: File updated
+        '201':
+          description: File created
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      operationId: deleteFile
+      summary: Delete repository file
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentsDeleteRequest'
+      responses:
+        '200':
+          description: File deleted
+  /repos/{owner}/{repo}/git/trees/{tree_sha}:
+    get:
+      operationId: getRepositoryTree
+      summary: Get repository tree
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: tree_sha
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: recursive
+        in: query
+        schema:
+          type: string
+          enum:
+          - '1'
+          - 'true'
+          - 'false'
+          default: '1'
+      responses:
+        '200':
+          description: Repository tree
+  /repos/{owner}/{repo}/dispatches:
+    post:
+      operationId: repositoryDispatch
+      summary: Trigger repository dispatch
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepositoryDispatchRequest'
+      responses:
+        '204':
+          description: Dispatch accepted
+  /repos/{owner}/{repo}/actions/workflows:
+    get:
+      operationId: listWorkflows
+      summary: List workflows
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: Workflows list
+  /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches:
+    post:
+      operationId: triggerWorkflow
+      summary: Manually trigger workflow_dispatch
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: workflow_id
+        in: path
+        required: true
+        schema:
+          oneOf:
+          - type: integer
+            minimum: 1
+          - type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDispatchRequest'
+      responses:
+        '204':
+          description: Workflow triggered
+  /repos/{owner}/{repo}/actions/runs:
+    get:
+      operationId: listWorkflowRuns
+      summary: List workflow runs
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: branch
+        in: query
+        schema:
+          type: string
+      - name: event
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - queued
+          - in_progress
+          - completed
+          - requested
+          - waiting
+          - pending
+          - action_required
+          - cancelled
+          - failure
+          - neutral
+          - skipped
+          - stale
+          - startup_failure
+          - success
+          - timed_out
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: Runs list
+  /repos/{owner}/{repo}/actions/runs/{run_id}:
+    get:
+      operationId: getWorkflowRun
+      summary: Get workflow run status
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: Run details
+  /repos/{owner}/{repo}/actions/runs/{run_id}/logs:
+    get:
+      operationId: getWorkflowRunLogs
+      summary: Get workflow logs archive redirect
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '302':
+          description: Redirect to logs archive URL
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /repos/{owner}/{repo}/actions/runs/{run_id}/rerun:
+    post:
+      operationId: rerunWorkflowRun
+      summary: Rerun workflow run
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '201':
+          description: Rerun requested
+  /repos/{owner}/{repo}/actions/runs/{run_id}/cancel:
+    post:
+      operationId: cancelWorkflowRun
+      summary: Cancel workflow run
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '202':
+          description: Cancel requested
+  /repos/{owner}/{repo}/actions/artifacts:
+    get:
+      operationId: listWorkflowArtifacts
+      summary: List workflow artifacts
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: Artifacts list
+  /repos/{owner}/{repo}/branches:
+    get:
+      operationId: listBranches
+      summary: List branches
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: Branch list
+  /repos/{owner}/{repo}/git/refs:
+    post:
+      operationId: createBranch
+      summary: Create branch reference
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRefRequest'
+      responses:
+        '201':
+          description: Branch created
+  /repos/{owner}/{repo}/git/refs/heads/{branch}:
+    patch:
+      operationId: updateBranchRef
+      summary: Update branch reference
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRefRequest'
+      responses:
+        '200':
+          description: Ref updated
+    delete:
+      operationId: deleteBranch
+      summary: Delete branch
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: branch
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      responses:
+        '204':
+          description: Branch deleted
+  /repos/{owner}/{repo}/pulls:
+    get:
+      operationId: listPullRequests
+      summary: List pull requests
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: state
+        in: query
+        schema:
+          type: string
+          enum:
+          - open
+          - closed
+          - all
+          default: open
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: PR list
+    post:
+      operationId: createPullRequest
+      summary: Create pull request
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePullRequestRequest'
+      responses:
+        '201':
+          description: PR created
+  /repos/{owner}/{repo}/pulls/{pull_number}:
+    get:
+      operationId: getPullRequest
+      summary: Get pull request
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: pull_number
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      responses:
+        '200':
+          description: PR details
+  /repos/{owner}/{repo}/pulls/{pull_number}/merge:
+    put:
+      operationId: mergePullRequest
+      summary: Merge pull request
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: pull_number
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergePullRequestRequest'
+      responses:
+        '200':
+          description: PR merged
+  /repos/{owner}/{repo}/issues:
+    get:
+      operationId: listIssues
+      summary: List issues
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: state
+        in: query
+        schema:
+          type: string
+          enum:
+          - open
+          - closed
+          - all
+          default: open
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: Issues list
+    post:
+      operationId: createIssue
+      summary: Create issue
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIssueRequest'
+      responses:
+        '201':
+          description: Issue created
+  /repos/{owner}/{repo}/issues/{issue_number}/comments:
+    post:
+      operationId: createIssueComment
+      summary: Create issue comment
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: issue_number
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIssueCommentRequest'
+      responses:
+        '201':
+          description: Comment created
+  /repos/{owner}/{repo}/commits:
+    get:
+      operationId: listCommits
+      summary: List commits
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: sha
+        in: query
+        schema:
+          type: string
+      - name: path
+        in: query
+        schema:
+          type: string
+      - name: per_page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      responses:
+        '200':
+          description: Commit list
+  /repos/{owner}/{repo}/commits/{ref}:
+    get:
+      operationId: getCommit
+      summary: Get commit by reference
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      responses:
+        '200':
+          description: Commit details
+  /repos/{owner}/{repo}/compare/{base}...{head}:
+    get:
+      operationId: compareCommits
+      summary: Compare two refs
+      parameters:
+      - name: owner
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: repo
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: base
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      - name: head
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+      responses:
+        '200':
+          description: Diff result
