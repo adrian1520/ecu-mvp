@@ -606,10 +606,10 @@ paths:
       responses:
         '200':
           description: Run details
-  /repos/{owner}/{repo}/actions/runs/{run_id}/logs:
+  /repos/{owner}/{repo}/actions/runs/{run_id}/jobs:
     get:
-      operationId: getWorkflowRunLogs
-      summary: Get workflow logs archive redirect
+      operationId: listJobsForWorkflowRun
+      summary: List jobs for a workflow run
       parameters:
       - name: owner
         in: path
@@ -629,9 +629,17 @@ paths:
         schema:
           type: integer
           minimum: 1
+      - name: filter
+        in: query
+        schema:
+          type: string
+          enum:
+          - latest
+          - all
+          default: latest
       responses:
-        '302':
-          description: Redirect to logs archive URL
+        '200':
+          description: Jobs list
         '404':
           $ref: '#/components/responses/NotFound'
   /repos/{owner}/{repo}/actions/runs/{run_id}/rerun:
