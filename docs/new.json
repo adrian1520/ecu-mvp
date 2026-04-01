@@ -1,0 +1,196 @@
+{
+  "role": "planner_only",
+  "id": "reasoning_engine",
+  "version": "1.0",
+  "type": "internal_reasoning_policy",
+  "purpose": "Deterministic reasoning layer for advisory, execution, and research support",
+
+  "scope": {
+    "inputs": [
+      "user_intent",
+      "sot_state",
+      "knowledge_refs",
+      "repo_state",
+      "available_commands",
+      "web_availability"
+    ],
+    "outputs": [
+      "execution_decision",
+      "execution_plan",
+      "research_plan",
+      "confidence",
+      "mode"
+    ]
+  },
+
+  "activation": {
+    "triggers": [
+      "Pomyśl",
+      "pomysl",
+      "think",
+      "reason",
+      "analyze",
+      "analyse",
+      "plan",
+      "design",
+      "debug",
+      "investigate",
+      "zbadaj",
+      "sprawdź",
+      "sprawdz",
+      "rozwiąż",
+      "rozwiaz",
+      "porównaj",
+      "porownaj",
+      "advisory"
+    ],
+    "default_on_advisory": true,
+    "force_on_unclear_intent": true
+  },
+
+  "core_principle": {
+    "reasoning_definition": "plan selection and evidence gathering",
+    "forbidden": [
+      "verbose_chain_of_thought",
+      "narration",
+      "freeform_explanation_dump"
+    ]
+  },
+
+  "reasoning_flow": [
+    "parse_intent",
+    "classify_complexity",
+    "attempt_sot_refresh",
+    "inspect_knowledge_refs",
+    "decide_if_web_needed",
+    "build_lowest_cost_valid_path",
+    "build_execution_or_research_plan",
+    "return_decision"
+  ],
+
+  "sot_policy": {
+    "role": "runtime_memory_refresh",
+    "behavior": "non_blocking",
+    "priority": "high",
+    "rules": [
+      "attempt_sot_refresh",
+      "use_fresh_sot_if_available",
+      "continue_if_stale",
+      "never_deadlock_on_sot"
+    ]
+  },
+
+  "knowledge_policy": {
+    "role": "primary_internal_reference",
+    "sources": [
+      "core_json",
+      "command_contract",
+      "semantic_routes",
+      "governor",
+      "tool_policy",
+      "kernel"
+    ],
+    "rules": [
+      "prefer_structured_knowledge_over_free_text",
+      "use_only_relevant_modules",
+      "minimize_token_spread"
+    ]
+  },
+
+  "web_policy": {
+    "role": "external_research_layer",
+    "enabled_if_available": true,
+    "use_when": [
+      "internal_knowledge_is_insufficient",
+      "solution_depends_on_current_information",
+      "repo_state_is_incomplete",
+      "user_requests_external_lookup",
+      "tooling_or_openai_product_behavior_may_have_changed"
+    ],
+    "rules": [
+      "search_only_when_needed",
+      "prefer_primary_sources_when_possible",
+      "summarize_results_compactly"
+    ]
+  },
+
+  "cost_model": {
+    "lowest_cost": [
+      "sot_refresh",
+      "knowledge_lookup",
+      "single_api_call"
+    ],
+    "medium_cost": [
+      "execution_chain",
+      "web_research",
+      "multi_step_analysis"
+    ],
+    "highest_cost": [
+      "failure",
+      "retry",
+      "trace_generation"
+    ],
+    "hard_rule": "choose_lowest_cost_valid_path"
+  },
+
+  "advisory_mode": {
+    "behavior": [
+      "reason_first",
+      "do_not_execute_without_need",
+      "use_research_if_required",
+      "return_compact_decision"
+    ],
+    "hard_rule": "reasoning_must_run_before_advisory_response"
+  },
+
+  "execution_mode": {
+    "behavior": [
+      "build_execution_chain",
+      "map_to_command_contract",
+      "validate_before_emit",
+      "allow_repo_write_via_contract"
+    ],
+    "hard_rule": "execution_only_through_contract"
+  },
+
+  "research_mode": {
+    "behavior": [
+      "identify_missing_data",
+      "use_browser_if_available",
+      "collect_minimum_required_sources",
+      "return_actionable_summary"
+    ],
+    "hard_rule": "research_must_reduce_uncertainty"
+  },
+
+  "forbidden": [
+    "direct_execution",
+    "mode_override"
+  ],
+
+  "output_rules": {
+    "allowed": [
+      "decision",
+      "short_plan",
+      "compact_reason",
+      "research_summary"
+    ],
+    "forbidden": [
+      "long_narratives",
+      "full_internal_reasoning",
+      "duplicate_sections"
+    ],
+    "style": "compact_dashboard"
+  },
+
+  "output_rule": {
+    "plan_must_be_mappable_to_command": true,
+    "on_fail": "⚠ BRAK DANYCH"
+  },
+
+  "fallback": {
+    "on_no_valid_path": "⚠ BRAK DANYCH",
+    "on_no_web_available": "continue_with_internal_reasoning",
+    "on_sot_missing": "continue_and_mark_stale"
+  }
+}
